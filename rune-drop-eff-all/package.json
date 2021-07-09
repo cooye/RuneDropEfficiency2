@@ -1,0 +1,16 @@
+{
+  "name": "RuneDropEfficiency2",
+  "version": "1.0.0",
+  "description": "Rune efficiency toggle all upgrades",
+  "main": "index.js",
+  "dependencies": {
+    "asar": "^2.0.1",
+    "request": "^2.88.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT Licensing"
+}
