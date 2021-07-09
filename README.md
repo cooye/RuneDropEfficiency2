@@ -1,8 +1,10 @@
-# swex-artifact-efficiency
-Artifact Efficiency Plugin for SWEX
+# RuneDropEfficiency2
+Updated Rune Drop efficiency tool. Toggle feature to show all upgrades even fails. This can allow you to view efficiency and max hero/legend grinded efficiency for any non +15 rune by simply upgrading once. 
+
+Happy rune purging!
 
 Add the release .asar file to your SWEX \plugins folder and watch artifact efficiencies as they drop for quick comparison. Follows the efficiency math from SWOP and SWGT.
 
-Thanks to Xzandro and Cerusa for the original runedropefficiency code and math.
+Thanks to Xzandro for the original runedropefficiency code and math.
 
-![image](https://user-images.githubusercontent.com/21117386/123708656-cc76b800-d839-11eb-8450-213237b14996.png)
+
