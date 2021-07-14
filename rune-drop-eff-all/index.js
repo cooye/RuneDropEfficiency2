@@ -1,12 +1,21 @@
+const pluginName = 'RuneDropEfficiency2';
+
 module.exports = {
   defaultConfig: {
     enabled: true,
-	showAllUpgrades: false
+	showAllUpgrades: false,
+	flatStatsHalf: false,
+	showGemEfficiencies: false,
+	showLegendGemEfficiencies: false
   },
 	defaultConfigDetails: {
-    showAllUpgrades: {label: 'Show all upgrades?'}
+    showAllUpgrades: {label: 'Show all upgrades?'},
+	flatStatsHalf: {label: 'Flat stats count 50%?'},
+	showGemEfficiencies: {label: 'Show hero table?'},
+	showLegendGemEfficiencies: {label: 'Show legend gem table?'}
+	
   },
-  pluginName: 'RuneDropEfficiency2',
+  pluginName,
   pluginDescription: 'Logs the maximum possible efficiency for runes as they drop and all upgrades',
   init(proxy, config) {
     proxy.on('apiCommand', (req, resp) => {
@@ -18,7 +27,7 @@ module.exports = {
   processCommand(proxy, req, resp, config) {
     const { command } = req;
     let runesInfo = [];
-
+	try{
     // Extract the rune and display it's efficiency stats.
     switch (command) {
       case 'BattleDungeonResult':
@@ -28,7 +37,20 @@ module.exports = {
           const reward = resp.reward ? resp.reward : {};
 
           if (reward.crate && reward.crate.rune) {
-            runesInfo.push(this.logRuneDrop(reward.crate.rune));
+            runesInfo.push(this.logRuneDrop(reward.crate.rune,config));
+          }
+        }
+        break;
+	case 'BattleDimensionHoleDungeonResult_v2':
+        if (resp.win_lose === 1) {
+          const rewards = resp.changed_item_list ? resp.changed_item_list : [];
+
+          if (rewards) {
+            rewards.forEach(reward => {
+              if (reward.type === 8) {
+                runesInfo.push(this.logRuneDrop(reward.info,config));
+              }
+            });
           }
         }
         break;
@@ -39,7 +61,7 @@ module.exports = {
           if (rewards) {
             rewards.forEach(reward => {
               if (reward.type === 8) {
-                runesInfo.push(this.logRuneDrop(reward.info));
+                runesInfo.push(this.logRuneDrop(reward.info,config));
               }
             });
           }
@@ -48,13 +70,13 @@ module.exports = {
       case 'UpgradeRune': {
 		  
 		 if (config.Config.Plugins[this.pluginName].showAllUpgrades) {
-			 runesInfo.push(this.logRuneDrop(resp.rune));
+			 runesInfo.push(this.logRuneDrop(resp.rune,config));
 		 } else {
 			const originalLevel = req.upgrade_curr;
 			const newLevel = resp.rune.upgrade_curr;
 
 			if (newLevel > originalLevel && newLevel % 3 === 0 && newLevel <= 12) {
-			  runesInfo.push(this.logRuneDrop(resp.rune));
+			  runesInfo.push(this.logRuneDrop(resp.rune,config));
 			}
 		 }
         break;
@@ -64,31 +86,31 @@ module.exports = {
       case 'ConvertRune':
       case 'ConvertRune_v2':
       case 'ConfirmRune':
-        runesInfo.push(this.logRuneDrop(resp.rune));
+        runesInfo.push(this.logRuneDrop(resp.rune,config));
         break;
 
       case 'BuyBlackMarketItem':
         if (resp.runes && resp.runes.length === 1) {
-          runesInfo.push(this.logRuneDrop(resp.runes[0]));
+          runesInfo.push(this.logRuneDrop(resp.runes[0],config));
         }
         break;
 
       case 'BuyGuildBlackMarketItem':
         if (resp.runes && resp.runes.length === 1) {
-          runesInfo.push(this.logRuneDrop(resp.runes[0]));
+          runesInfo.push(this.logRuneDrop(resp.runes[0],config));
         }
         break;
 
       case 'BuyShopItem':
         if (resp.reward && resp.reward.crate && resp.reward.crate.runes) {
-          runesInfo.push(this.logRuneDrop(resp.reward.crate.runes[0]));
+          runesInfo.push(this.logRuneDrop(resp.reward.crate.runes[0],config));
         }
         break;
 
       case 'GetBlackMarketList':
         resp.market_list.forEach(item => {
           if (item.item_master_type === 8 && item.runes) {
-            runesInfo.push(this.logRuneDrop(item.runes[0]));
+            runesInfo.push(this.logRuneDrop(item.runes[0],config));
           }
         });
         break;
@@ -96,7 +118,7 @@ module.exports = {
       case 'GetGuildBlackMarketList':
         resp.market_list.forEach(item => {
           if (item.item_master_type === 8 && item.runes) {
-            runesInfo.push(this.logRuneDrop(item.runes[0]));
+            runesInfo.push(this.logRuneDrop(item.runes[0],config));
           }
         });
         break;
@@ -106,7 +128,7 @@ module.exports = {
 
         if (reward.crate && reward.crate.runes) {
           reward.crate.runes.forEach(rune => {
-            runesInfo.push(this.logRuneDrop(rune));
+            runesInfo.push(this.logRuneDrop(rune,config));
           });
         }
         break;
@@ -115,7 +137,7 @@ module.exports = {
         if (resp.item_list) {
           resp.item_list.forEach(item => {
             if (item.type === 8) {
-              runesInfo.push(this.logRuneDrop(item.info));
+              runesInfo.push(this.logRuneDrop(item.info, config));
             }
           });
         }
@@ -123,8 +145,7 @@ module.exports = {
 
       default:
         break;
-    }
-
+    } 
     if (runesInfo.length > 0) {
       proxy.log({
         type: 'info',
@@ -133,11 +154,14 @@ module.exports = {
         message: this.mountRuneListHtml(runesInfo)
       });
     }
+	}catch(e) {
+	proxy.log({ type: 'debug', source: 'plugin', name: this.pluginName, message: `${resp['command']}-${e.message}` });
+	}
   },
 
-  logRuneDrop(rune) {
-    const efficiency = this.getRuneEfficiency(rune);
-    const runeQuality = gMapping.rune.quality[rune.rank];
+  logRuneDrop(rune,config,proxy) {
+    const efficiency = this.getRuneEfficiency(rune,config,proxy);
+    const runeQuality = gMapping.rune.quality[rune.extra];
     const colorTable = {
       Common: 'grey',
       Magic: 'green',
@@ -148,23 +172,141 @@ module.exports = {
 
     let color = colorTable[runeQuality];
     let starHtml = this.mountStarsHtml(rune);
-
-    return `<div class="rune item">
+	let effectsHtml = this.mountRuneStats(rune);
+	let gemHtml = this.mountGemValuesTable(rune,config);
+//<img src="../assets/runes/${this.rune.sets[rune.set_id]}.png" />
+    return `<div class="rune item" height="105px">
               <div class="ui image ${color} label">
-                <img src="../assets/runes/${this.rune.sets[rune.set_id]}.png" />
+				${effectsHtml}
                 <span class="upgrade">+${rune.upgrade_curr}</span>  
               </div>
 
               <div class="content">
                 ${starHtml}
                 <div class="header">${gMapping.isAncient(rune) ? 'Ancient ' : ''}${gMapping.rune.sets[rune.set_id]} Rune (${rune.slot_no}) ${
-      gMapping.rune.effectTypes[rune.pri_eff[0]]}: ${this.rune.quality[rune.extra]}</div>
+					gMapping.rune.effectTypes[rune.pri_eff[0]]}: ${this.rune.quality[rune.extra]}</div>
                 <div class="description">Efficiency: ${efficiency.current}%. Max:${efficiency.max}%. </div>
 				<div class="description">Hero Grinded:${efficiency.maxHeroGrinded}%. Legend Grinded:${efficiency.maxLegendGrinded}%.</div>
+				${config.Config.Plugins[pluginName].showGemEfficiencies || config.Config.Plugins[pluginName].showLegendGemEfficiencies ? gemHtml : ''}
               </div>
             </div>`;
   },
-
+  mountRuneStats(rune) {
+	  
+	  let html = '<div class="stat-line">';
+	  
+	  // innate stat
+    if (rune.prefix_eff && rune.prefix_eff[0] > 0) {
+		let value = rune.prefix_eff[1];
+		html = html.concat(`<div class="stat">${this.geteffectTypeStrings[rune.prefix_eff[0]]}:${value}</div>`);
+    }
+	  // sub stats
+    rune.sec_eff.forEach(stat => {
+		let value = stat[3] && stat[3] > 0 ? stat[1] + stat[3] : stat[1];
+		html = html.concat(`<div class="stat">${this.geteffectTypeStrings[stat[0]]}:${value}</div>`);
+    });
+	  return html.concat('</div>');
+  },
+  topN(arr,n){
+	if(n>arr.length){
+		return false
+	}
+	return arr
+	.slice()
+	.sort((a,b) => {
+		return b.eff - a.eff
+	})
+	.slice(0,n);		
+  },
+  mountGemValuesTable(rune,config) {
+	  html = '';
+	  if(config.Config.Plugins[pluginName].showGemEfficiencies){
+	  html = html.concat('<div class="description"> Hero Gem + Hero Grinds Table:</div>');
+	  html = html.concat(`<div class="gem-table">`);
+	  //Table 1: Hero Gem + Grinds
+	  html = html.concat(`<table border="1" cellspacing="0" cellpadding="0"><tr><th>Sub</th>`);
+	  //add column headers from effect strings
+	  for (var sub in this.geteffectTypeStrings) {
+			  html = sub>0 ? html.concat(`<th>${this.geteffectTypeStrings[sub]}</th>`) : html;
+	  }
+	  html=html.concat(`</tr>`);
+	  //calculate top 3 efficiencies
+	  effArr = []
+	  effVal = {}
+	  effVal.eff=0;
+	  rune.sec_eff.forEach(stat=> {
+		  for (var sub in this.geteffectTypeStrings) {
+			  if (sub >0) {
+				val =this.getSubStatGemEfficiency(rune,stat[0],sub,4,config);
+				effVal.eff = val.maxGrinded=='' ? 0 : val.maxGrinded;
+				effArr.push(effVal.eff);
+			  }
+		  }
+	  });
+	  effArr.sort((a,b)=>b-a);//this.topN(effArr,3);
+	  lastItem = effArr.length-1<3 ? effArr.length-1 :3;
+	  vals = effArr.slice(0,lastItem);
+	  limit = vals[lastItem-1];
+	  //add substat info 
+	  rune.sec_eff.forEach(stat => {
+		html = html.concat(`<tr><td>${this.geteffectTypeStrings[stat[0]]}</td>`);
+		//populate gem efficiencies
+		for (var sub in this.geteffectTypeStrings) {
+			if (sub >0) {
+				newEfficiency = this.getSubStatGemEfficiency(rune,stat[0],sub,4,config);
+				html = html.concat(`<td ${newEfficiency.maxGrinded>=limit ? 'bgcolor="lightgreen"' : ''}>${newEfficiency.maxGrinded}</td>`);
+			}
+		}
+		html=html.concat(`</tr>`);
+		
+    });
+		html = html.concat('</table></div><br>');
+	  }
+	  if(config.Config.Plugins[pluginName].showLegendGemEfficiencies){
+	  //Table 2: Legend Gem + Grinds
+	  html = html.concat('<div class="description"> Legend Gem + Legend Grinds Table:</div>');
+	  html = html.concat(`<div class="gem-table">`);
+	  html = html.concat(`<table border="1" cellspacing="0" cellpadding="0"><tr><th>Sub</th>`);
+	  //add column headers from effect strings
+	  for (var sub in this.geteffectTypeStrings) {
+			  html = sub>0 ? html.concat(`<th>${this.geteffectTypeStrings[sub]}</th>`) : html;
+	  }
+	  html=html.concat(`</tr>`);
+	  //calculate top 3 efficiencies
+	  effArr = []
+	  effVal = {}
+	  effVal.eff=0;
+	  rune.sec_eff.forEach(stat=> {
+		  for (var sub in this.geteffectTypeStrings) {
+			  if (sub >0) {
+				val =this.getSubStatGemEfficiency(rune,stat[0],sub,5,config);
+				effVal.eff = val.maxGrinded=='' ? 0 : val.maxGrinded;
+				effArr.push(effVal.eff);
+			  }
+		  }
+	  });
+	  effArr.sort((a,b)=>b-a);//this.topN(effArr,3);
+	  lastItem = effArr.length-1<3 ? effArr.length-1 :3;
+	  vals = effArr.slice(0,lastItem);
+	  limit2 = vals[lastItem-1];
+	  //add substat info 
+	  rune.sec_eff.forEach(stat => {
+		html = html.concat(`<tr><td>${this.geteffectTypeStrings[stat[0]]}</td>`);
+		//populate gem efficiencies
+		for (var sub in this.geteffectTypeStrings) {
+			if (sub >0) {
+				newEfficiency = this.getSubStatGemEfficiency(rune,stat[0],sub,5,config);
+				colorStyle = parseFloat(newEfficiency.maxGrinded)>=limit2 ? 'bgcolor="lightgreen"' : '';
+				html = html.concat(`<td ${colorStyle}>${newEfficiency.maxGrinded}</td>`);
+			}
+		}
+		html=html.concat(`</tr>`);
+		
+    });
+		html = html.concat('</table></div>');
+	  }
+	  return html;
+  },
   mountStarsHtml(rune) {
     let count = 0;
     let html = '<div class="star-line">';
@@ -368,10 +510,26 @@ module.exports = {
           4: 1125,
           5: 1500,
           6: 1875
+        },
+		max50: {
+          1: 300*2,
+          2: 525*2,
+          3: 825*2,
+          4: 1125*2,
+          5: 1500*2,
+          6: 1875*2
         }
       },
       2: {
         max: {
+          1: 10,
+          2: 15,
+          3: 25,
+          4: 30,
+          5: 35,
+          6: 40
+        },
+		max50: {
           1: 10,
           2: 15,
           3: 25,
@@ -388,10 +546,26 @@ module.exports = {
           4: 50,
           5: 75,
           6: 100
+        },
+		max50: {
+          1: 20*2,
+          2: 25*2,
+          3: 40*2,
+          4: 50*2,
+          5: 75*2,
+          6: 100*2
         }
       },
       4: {
         max: {
+          1: 10,
+          2: 15,
+          3: 25,
+          4: 30,
+          5: 35,
+          6: 40
+        },
+		max50: {
           1: 10,
           2: 15,
           3: 25,
@@ -408,10 +582,26 @@ module.exports = {
           4: 50,
           5: 75,
           6: 100
+        },
+		max50: {
+          1: 20*2,
+          2: 25*2,
+          3: 40*2,
+          4: 50*2,
+          5: 75*2,
+          6: 100*2
         }
       },
       6: {
         max: {
+          1: 10,
+          2: 15,
+          3: 25,
+          4: 30,
+          5: 35,
+          6: 40
+        },
+		max50: {
           1: 10,
           2: 15,
           3: 25,
@@ -428,10 +618,26 @@ module.exports = {
           4: 20,
           5: 25,
           6: 30
+        },
+		max50: {
+          1: 5,
+          2: 10,
+          3: 15,
+          4: 20,
+          5: 25,
+          6: 30
         }
       },
       9: {
         max: {
+          1: 5,
+          2: 10,
+          3: 15,
+          4: 20,
+          5: 25,
+          6: 30
+        },
+		max50: {
           1: 5,
           2: 10,
           3: 15,
@@ -448,6 +654,14 @@ module.exports = {
           4: 25,
           5: 25,
           6: 35
+        },
+		max50: {
+          1: 10,
+          2: 15,
+          3: 20,
+          4: 25,
+          5: 25,
+          6: 35
         }
       },
       11: {
@@ -458,10 +672,26 @@ module.exports = {
           4: 25,
           5: 35,
           6: 40
+        },
+		max50: {
+          1: 10,
+          2: 15,
+          3: 20,
+          4: 25,
+          5: 35,
+          6: 40
         }
       },
       12: {
         max: {
+          1: 10,
+          2: 15,
+          3: 20,
+          4: 25,
+          5: 35,
+          6: 40
+        },
+		max50: {
           1: 10,
           2: 15,
           3: 20,
@@ -572,28 +802,131 @@ module.exports = {
         5: { min: 0, max: 0 }
       }
     }
+	
   },
-  /*
-  effectTypeStrings: {
+  gem: {
+    1: {
+      range: {
+        1: { min: 0, max: 0 },
+        2: { min: 0, max: 0 },
+        3: { min: 0, max: 0 },
+        4: { min: 290, max: 420 },
+        5: { min: 400, max: 580 }
+      }
+    },
+    2: {
+      range: {
+        1: { min: 0, max: 0 },
+        2: { min: 0, max: 0 },
+        3: { min: 0, max: 0 },
+        4: { min: 7, max: 11 },
+        5: { min: 9, max: 13 }
+      }
+    },
+    3: {
+      range: {
+        1: { min: 0, max: 0 },
+        2: { min: 0, max: 0 },
+        3: { min: 0, max: 0 },
+        4: { min: 20, max: 30 },
+        5: { min: 28, max: 40 }
+      }
+    },
+    4: {
+      range: {
+        1: { min: 0, max: 0 },
+        2: { min: 0, max: 0 },
+        3: { min: 0, max: 0 },
+        4: { min: 7, max: 11 },
+        5: { min: 9, max: 13 }
+      }
+    },
+    5: {
+      range: {
+        1: { min: 0, max: 0 },
+        2: { min: 0, max: 0 },
+        3: { min: 0, max: 0 },
+        4: { min: 20, max: 30 },
+        5: { min: 28, max: 40 }
+      }
+    },
+    6: {
+      range: {
+        1: { min: 0, max: 0 },
+        2: { min: 0, max: 0 },
+        3: { min: 0, max: 0 },
+        4: { min: 7, max: 11 },
+        5: { min: 9, max: 13 }
+      }
+    },
+    8: {
+      range: {
+        1: { min: 0, max: 0 },
+        2: { min: 0, max: 0 },
+        3: { min: 0, max: 0 },
+        4: { min: 5, max: 8 },
+        5: { min: 7, max: 10 }
+      }
+    },
+    9: {
+      range: {
+        1: { min: 0, max: 0 },
+        2: { min: 0, max: 0 },
+        3: { min: 0, max: 0 },
+        4: { min: 4, max: 7 },
+        5: { min: 6, max: 9 }
+      }
+    },
+    10: {
+      range: {
+        1: { min: 0, max: 0 },
+        2: { min: 0, max: 0 },
+        3: { min: 0, max: 0 },
+        4: { min: 5, max: 8 },
+        5: { min: 7, max: 10 }
+      }
+    },
+    11: {
+      range: {
+        1: { min: 0, max: 0 },
+        2: { min: 0, max: 0 },
+        3: { min: 0, max: 0 },
+        4: { min: 6, max: 9 },
+        5: { min: 8, max: 11 }
+      }
+    },
+    12: {
+      range: {
+        1: { min: 0, max: 0 },
+        2: { min: 0, max: 0 },
+        3: { min: 0, max: 0 },
+        4: { min: 6, max: 9 },
+        5: { min: 8, max: 11 }
+      }
+    }
+	
+  },
+  
+  geteffectTypeStrings: {
       0: '',
-      1: `HP +${value}`,
-      2: `HP ${value}%`,
-      3: `ATK +${value}`,
-      4: `ATK ${value}%`,
-      5: `DEF +${value}`,
-      6: `DEF ${value}%`,
-      8: `SPD +${value}`,
-      9: `CRI Rate ${value}%`,
-      10: `CRI Dmg ${value}%`,
-      11: `Resistance ${value}%`,
-      12: `Accuracy ${value}%`
-    },*/
+      1: `HP+`,
+      2: `HP%`,
+      3: `ATK+`,
+      4: `ATK%`,
+      5: `DEF+`,
+      6: `DEF%`,
+      8: `SPD+`,
+      9: `CRR%`,
+      10: `CDmg%`,
+      11: `RES%`,
+      12: `ACC%`
+    },
 
-  getRuneEfficiency(rune, toFixed = 2) {
+  getRuneEfficiency(rune,config, toFixed = 2) {
     let ratio = 0.0;
 	let ratioHeroGrinded = 0.0;
 	let ratioLegendGrinded = 0.0;
-
+	
     // main stat
     ratio +=
       this.rune.mainstat[rune.pri_eff[0]].max[gMapping.isAncient(rune) ? rune.class - 10 : rune.class] / this.rune.mainstat[rune.pri_eff[0]].max[6];
@@ -601,26 +934,27 @@ module.exports = {
 		this.rune.mainstat[rune.pri_eff[0]].max[gMapping.isAncient(rune) ? rune.class - 10 : rune.class] / this.rune.mainstat[rune.pri_eff[0]].max[6];
 	ratioLegendGrinded +=
 		this.rune.mainstat[rune.pri_eff[0]].max[gMapping.isAncient(rune) ? rune.class - 10 : rune.class] / this.rune.mainstat[rune.pri_eff[0]].max[6];
-		
-    // sub stats
+ // sub stats
     rune.sec_eff.forEach(stat => {
       let value = stat[3] && stat[3] > 0 ? stat[1] + stat[3] : stat[1];
-      ratio += value / this.rune.substat[stat[0]].max[6];
+	  let maxValue = (config.Config.Plugins[pluginName].flatStatsHalf ? this.rune.substat[stat[0]].max50[6] : this.rune.substat[stat[0]].max[6]);
+      ratio += value / maxValue;
 	  
 	  grindValue = this.grindstone[stat[0]].range[4].max;
-	  value = stat[1] + grindValue;
-	  ratioHeroGrinded += value / this.rune.substat[stat[0]].max[6];
+	  value = value > stat[1] + grindValue ? value : stat[1] + grindValue;
+	  ratioHeroGrinded += value / maxValue;
 	  
 	  grindValue = this.grindstone[stat[0]].range[5].max;
 	  value = stat[1] + grindValue;
-	  ratioLegendGrinded += value / this.rune.substat[stat[0]].max[6];
+	  ratioLegendGrinded += value / maxValue;
     });
 
     // innate stat
     if (rune.prefix_eff && rune.prefix_eff[0] > 0) {
-      ratio += rune.prefix_eff[1] / this.rune.substat[rune.prefix_eff[0]].max[6];
-	  ratioHeroGrinded += rune.prefix_eff[1] / this.rune.substat[rune.prefix_eff[0]].max[6];
-	  ratioLegendGrinded += rune.prefix_eff[1] / this.rune.substat[rune.prefix_eff[0]].max[6];
+		let maxValue = (config.Config.Plugins[pluginName].flatStatsHalf ? this.rune.substat[rune.prefix_eff[0]].max50[6] : this.rune.substat[rune.prefix_eff[0]].max[6]);
+		ratio += rune.prefix_eff[1] / maxValue;
+		ratioHeroGrinded += rune.prefix_eff[1] / maxValue;
+		ratioLegendGrinded += rune.prefix_eff[1] / maxValue;
     }
 
     let efficiency = (ratio / 2.8) * 100;
@@ -633,5 +967,76 @@ module.exports = {
 	  maxHeroGrinded:(efficiencyHero + ((Math.max(Math.ceil((12 - rune.upgrade_curr) / 3.0), 0) * 0.2) / 2.8) * 100).toFixed(toFixed),
 	  maxLegendGrinded:(efficiencyLegend + ((Math.max(Math.ceil((12 - rune.upgrade_curr) / 3.0), 0) * 0.2) / 2.8) * 100).toFixed(toFixed)
     };
+
+  },
+  getSubStatGemEfficiency(rune,statOrig, statReplace,grindLevel,config, toFixed = 2) {
+	let ratioGrinded = 0.0;
+	exclude = 0;
+    // main stat
+	if(rune.pri_eff[0]==statReplace){
+		exclude = 1;
+	}
+	ratioGrinded +=
+		this.rune.mainstat[rune.pri_eff[0]].max[gMapping.isAncient(rune) ? rune.class - 10 : rune.class] / this.rune.mainstat[rune.pri_eff[0]].max[6];
+		
+    // sub stats
+    rune.sec_eff.forEach(stat => {
+		if (stat[2]==1 && statOrig != stat[0]){
+			exclude = 1;
+		};
+		if (statOrig == stat[0]){
+			//Rules to stop Slot 1 cannot have DEF, Slot 3 cannot have Atk, if rune already gemmed must use that, cannot use any other stats including primary and innate
+			if (rune.slot_no == 3 && (statReplace == 3 || statReplace == 4)) {
+				exclude = 1; 
+			}
+			if (rune.slot_no == 1 && (statReplace == 5 || statReplace == 6)) {
+				exclude = 1; 
+			}
+			rune.sec_eff.forEach(stat2 => {
+				if (stat2[0]!=stat[0]){
+					if(stat2[0]==statReplace){
+						exclude=1;
+					}
+				}
+			});
+			
+			value = this.gem[statReplace].range[grindLevel].max;
+			grindValue = this.grindstone[statReplace].range[grindLevel].max;
+			value = value + grindValue;
+			maxValue = (config.Config.Plugins[pluginName].flatStatsHalf ? this.rune.substat[statReplace].max50[6] : this.rune.substat[statReplace].max[6]);
+		} else {
+			value = stat[3] && stat[3] > 0 ? stat[1] + stat[3] : stat[1];
+			grindValue = this.grindstone[stat[0]].range[grindLevel].max;
+			value = value > stat[1] + grindValue ? value : stat[1] + grindValue;
+			maxValue = (config.Config.Plugins[pluginName].flatStatsHalf ? this.rune.substat[stat[0]].max50[6] : this.rune.substat[stat[0]].max[6]);
+		}
+	  ratioGrinded += value / maxValue;
+    });
+
+    // innate stat
+	
+    if (rune.prefix_eff && rune.prefix_eff[0] > 0) {
+		if (rune.prefix_eff[0]==statReplace){
+			exclude = 1;
+		}
+		
+		let maxValue = (config.Config.Plugins[pluginName].flatStatsHalf ? this.rune.substat[rune.prefix_eff[0]].max50[6] : this.rune.substat[rune.prefix_eff[0]].max[6]);
+		ratioGrinded += rune.prefix_eff[1] / maxValue;
+    }
+
+
+	let efficiencyGrinded = (ratioGrinded / 2.8) * 100;
+	efficiencyGrinded= exclude == 1 ? efficiencyGrinded = 0 : efficiencyGrinded;
+	if(efficiencyGrinded==0){
+		return {
+	  //current: ((ratioGrinded / 2.8) * 100).toFixed(toFixed),
+	  maxGrinded:''
+    };
+	} else {
+    return {
+	  //current: ((ratioGrinded / 2.8) * 100).toFixed(toFixed),
+	  maxGrinded:(efficiencyGrinded + ((Math.max(Math.ceil((12 - rune.upgrade_curr) / 3.0), 0) * 0.2) / 2.8) * 100).toFixed(toFixed)
+    };
+	}
   }
 };
