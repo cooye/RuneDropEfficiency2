@@ -254,7 +254,8 @@ module.exports = {
 		for (var sub in this.geteffectTypeStrings) {
 			if (sub >0) {
 				newEfficiency = this.getSubStatGemEfficiency(rune,stat[0],sub,4,config);
-				html = html.concat(`<td ${newEfficiency.maxGrinded>=limit ? 'bgcolor="lightgreen"' : ''}>${newEfficiency.maxGrinded}</td>`);
+				colorStyle = parseFloat(newEfficiency.maxGrinded)>=limit ? 'bgcolor="lightgreen"' : '';
+				html = html.concat(`<td ${colorStyle}>${newEfficiency.maxGrinded}</td>`);
 			}
 		}
 		html=html.concat(`</tr>`);
