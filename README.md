@@ -7,4 +7,10 @@ Add the release .asar file to your SWEX \plugins folder and watch artifact effic
 
 Thanks to Xzandro for the original runedropefficiency code and math.
 
+Top 3 (and ties) for gemmed efficiency are highlighted. Note: ungrindable stats will never achieve as high as a possible efficiency as grindable stats yet they are still very important. Don't simply gem for efficiency alone. This is just a tool to see potentials for a given rune easily.
 
+
+
+![image](https://user-images.githubusercontent.com/21117386/125680709-52553840-f082-4f16-8fcf-175a6879f647.png)
+
+![image](https://user-images.githubusercontent.com/21117386/125680030-36e2240a-96c3-426a-8569-e9063c3dbeb7.png)
