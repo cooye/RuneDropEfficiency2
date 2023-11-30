@@ -67,7 +67,7 @@ module.exports = {
           }
         }
         break;
-      case 'UpgradeRune': {
+      case 'upgradeRune_v2': {
 		  
 		 if (config.Config.Plugins[this.pluginName].showAllUpgrades) {
 			 runesInfo.push(this.logRuneDrop(resp.rune,config));
@@ -367,6 +367,8 @@ module.exports = {
       21: 'Enhance',
       22: 'Accuracy',
       23: 'Tolerance',
+      24: 'Seal',
+      25: 'Intangible',
       99: 'Immemorial'
     },
     class: {
